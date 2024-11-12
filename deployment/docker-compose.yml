@@ -1,0 +1,30 @@
+version: '1.0'
+
+services:
+  websocket-server:
+    build:
+      context: .  
+      dockerfile: Dockerfile  
+    container_name: websocket-server-container
+    ports:
+      - "8080:8080"  
+    environment:
+      - GO111MODULE=on
+      - CGO_ENABLED=0
+    networks:
+      - websocket-network
+
+  websocat:
+    image: solsson/websocat
+    container_name: websocat-client
+    depends_on:
+      - websocket-server  
+    entrypoint: [ "bash" ]  
+    tty: true  
+    stdin_open: true 
+    networks:
+      - websocket-network
+
+networks:
+  websocket-network:
+    driver: bridge
