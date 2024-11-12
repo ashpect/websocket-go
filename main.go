@@ -80,14 +80,12 @@ func (wsh *webSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, c
 	}
 
 	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-		fmt.Println("Creating new client")
+		// fmt.Println("Creating new client")
 		c.conn = conn
 		c.writeMessage = make(chan string)
 		c.serverMessage = make(chan string)
 		c.sessionID = uuid.New()
-		fmt.Println("debuf")
 		controller.register <- c
-		fmt.Println("de")
 
 	} else {
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
@@ -98,7 +96,7 @@ func (wsh *webSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, c
 		}
 		claims := parsedToken.Claims.(jwt.MapClaims)
 		parsedUUID, err := uuid.Parse(claims["user_id"].(string))
-		fmt.Println("Parsed UUID is ", parsedUUID)
+		// fmt.Println("Parsed UUID is ", parsedUUID)
 		if err != nil {
 			log.Fatalf("Failed to parse user_id as UUID: %v", err)
 			return
@@ -117,12 +115,12 @@ func (wsh *webSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, c
 			}
 			return
 		}
-		fmt.Println("Client with session id " + parsedUUID.String() + "found")
+		// fmt.Println("Client with session id " + parsedUUID.String() + "found")
 		c = clientFound
 		c.conn = conn
 	}
 
-	fmt.Println("Client session id is ", c.sessionID)
+	// fmt.Println("Client session id is ", c.sessionID)
 	go c.clientRead()
 	// I dont need to handle stopping clientRead goroutine - it will automatically exit after the error reading msg when i stop clientHandler.
 	go c.clientHandler()
@@ -131,7 +129,7 @@ func (wsh *webSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, c
 func (c *client) clientHandler() {
 	defer c.conn.Close()
 
-	fmt.Println("Client handler started")
+	// fmt.Println("Client handler started")
 	token, err := createJWTToken(c.sessionID.String())
 	if err != nil {
 		log.Printf("Error %s when creating JWT token", err)
@@ -143,7 +141,7 @@ func (c *client) clientHandler() {
 
 	// initializeTime := time.Now().Unix()
 	// for (time.Now().Unix() - initializeTime) < 300 {
-	sessionTimer := time.NewTimer(5 * time.Minute)
+	sessionTimer := time.NewTimer(1 * time.Minute)
 	defer sessionTimer.Stop() // Stop the timer when the function exits
 
 	// enable server side pushing
@@ -172,7 +170,7 @@ func (c *client) clientHandler() {
 }
 
 func (c *client) clientRead() {
-	fmt.Println("Client read started")
+	// fmt.Println("Client read started")
 	for {
 		messageType, message, err := c.conn.ReadMessage()
 		if err != nil {
@@ -217,7 +215,7 @@ func main() {
 	http.HandleFunc("/getClients", func(w http.ResponseWriter, r *http.Request) {
 		clients := controller.getClients()
 		for _, client := range clients {
-			fmt.Println(client.sessionID)
+			log.Print(client.sessionID)
 		}
 	})
 
