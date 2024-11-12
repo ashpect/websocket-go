@@ -43,9 +43,11 @@ func (m *controller) run() {
 	}
 }
 
-func (wsh webSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (wsh *webSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	authHeader := r.Header.Get("Authorization")
+
+	c := &client{}
 
 	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
 		conn, err := wsh.upgrader.Upgrade(w, r, nil)
@@ -53,8 +55,10 @@ func (wsh webSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			log.Printf("error %s when upgrading connection to websocket", err)
 			return
 		}
-		// since upgrade successful and no auth, issue new client session
-
+		c.conn = conn
+		c.sessionID = uuid.New()
+		fmt.Println("Creating new client Connection")
+		// controller.register <- c
 	} else {
 		// get the old client session
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
@@ -124,11 +128,11 @@ func main() {
 	}
 	go controller.run()
 
-	// WebSocket handler, tbh don't really need the struct but well
 	webSocketHandler := webSocketHandler{
 		upgrader: websocket.Upgrader{},
 	}
-	http.Handle("/", webSocketHandler)
+
+	http.Handle("/", &webSocketHandler)
 	log.Print("Starting server...")
 	log.Fatal(http.ListenAndServe("localhost:8080", nil))
 }
