@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
@@ -32,18 +33,15 @@ type controller struct {
 }
 
 func (m *controller) run() {
-	fmt.Println("Running controller")
+	// fmt.Println("Running controller")
 	for {
 		select {
 		case c := <-m.register:
-			fmt.Println("Registering client")
+			// fmt.Println("Registering client")
 			m.mu.Lock()
-			fmt.Println("a")
+			// fmt.Println("a")
 			m.clients[c.sessionID] = c
-			fmt.Println("b")
 			m.mu.Unlock()
-			fmt.Println("c")
-
 		case c := <-m.delete:
 			m.mu.Lock()
 			delete(m.clients, c.sessionID)
@@ -92,7 +90,6 @@ func (wsh *webSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, c
 		fmt.Println("de")
 
 	} else {
-		// TODO : TEST THIS WHOLE FLOW
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		parsedToken, err := validateToken(tokenString)
 		if err != nil {
@@ -127,11 +124,8 @@ func (wsh *webSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, c
 
 	fmt.Println("Client session id is ", c.sessionID)
 	go c.clientRead()
-	fmt.Println("Client read started")
 	// I dont need to handle stopping clientRead goroutine - it will automatically exit after the error reading msg when i stop clientHandler.
 	go c.clientHandler()
-	fmt.Println("Client handler started")
-
 }
 
 func (c *client) clientHandler() {
@@ -149,11 +143,17 @@ func (c *client) clientHandler() {
 
 	// initializeTime := time.Now().Unix()
 	// for (time.Now().Unix() - initializeTime) < 300 {
+	sessionTimer := time.NewTimer(5 * time.Minute)
+	defer sessionTimer.Stop() // Stop the timer when the function exits
 
 	// enable server side pushing
 	// Reads msgs
 	for {
 		select {
+		case <-sessionTimer.C:
+			response := "Session expired. Closing connection with client"
+			c.clientWrite(response)
+			return
 		case serverMessage := <-c.serverMessage:
 			c.clientWrite(serverMessage)
 		case writeMessage := <-c.writeMessage:
@@ -172,6 +172,7 @@ func (c *client) clientHandler() {
 }
 
 func (c *client) clientRead() {
+	fmt.Println("Client read started")
 	for {
 		messageType, message, err := c.conn.ReadMessage()
 		if err != nil {

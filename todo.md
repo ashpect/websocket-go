@@ -1,3 +1,5 @@
+## Functional Requirements
+
 1. Connection Management: <br>
 [x] The server should allow users to connect and disconnect.
 [x] Upon connection, the server should issue a unique session ID to the user. - verify
@@ -13,12 +15,19 @@ client message (server-side push).
 should send the same dummy message and receive a response.
 [] The benchmarking script must measure:
 
-<br><br>
+## Non-Functional Requirements
+
+1. Scalability:
+[] The server should handle at least 50,000 concurrent connections.
+2. Deployment:
+[] Depoyment scripts in bash
+[] Contanerize in docker/k8s
+## Good-to-Have Features
+
 1. Session Reconnection:
-session ID.
-[] After disconnection, clients can reconnect to their session using the same
+[x] After disconnection, clients can reconnect to their session using the same session ID.
 2. Session Inactivity Management:
-[] If a session is inactive for more than 5 minutes, the server should automatically
+[x] If a session is inactive for more than 5 minutes, the server should automatically
 disconnect the user.
 3. Advanced Benchmarking:
 [] In addition to the basic benchmarking:
