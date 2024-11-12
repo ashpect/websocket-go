@@ -6,7 +6,7 @@
 [x] For each message received, the server should return a hardcoded response
 along with the current message count for that session.
 3. Server-Side Events: <br>
-[] The server should be capable of sending messages to clients without receiving a
+[x] The server should be capable of sending messages to clients without receiving a
 client message (server-side push).
 4. Benchmarking: <br>
 [] Provide a basic benchmarking script that simulates clients. Each simulated client

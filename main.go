@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
@@ -16,26 +17,33 @@ type webSocketHandler struct {
 }
 
 type client struct {
-	conn      *websocket.Conn
+	conn          *websocket.Conn
+	writeMessage  chan string
 	serverMessage chan string
-	sessionID uuid.UUID
-	counter   int
+	sessionID     uuid.UUID
+	counter       int
 }
 
 type controller struct {
 	clients  map[uuid.UUID]*client
 	register chan *client
 	delete   chan *client
-	mu       sync.Mutex
+	mu       sync.RWMutex
 }
 
 func (m *controller) run() {
+	fmt.Println("Running controller")
 	for {
 		select {
 		case c := <-m.register:
+			fmt.Println("Registering client")
 			m.mu.Lock()
+			fmt.Println("a")
 			m.clients[c.sessionID] = c
+			fmt.Println("b")
 			m.mu.Unlock()
+			fmt.Println("c")
+
 		case c := <-m.delete:
 			m.mu.Lock()
 			delete(m.clients, c.sessionID)
@@ -45,15 +53,20 @@ func (m *controller) run() {
 }
 
 func (m *controller) getClients() map[uuid.UUID]*client {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return m.clients
 }
 
-func (m *controller) getClient(sessionID uuid.UUID) *client {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.clients[sessionID]
+func (m *controller) getClient(sessionID uuid.UUID) (*client, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	a, ok := m.clients[sessionID]
+	if !ok {
+		log.Printf("Client with session id %s not found", sessionID)
+		return nil, fmt.Errorf("Client with session id %s not found", sessionID)
+	}
+	return a, nil
 }
 
 func (wsh *webSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, controller *controller) {
@@ -62,36 +75,67 @@ func (wsh *webSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, c
 
 	c := &client{}
 
+	conn, err := wsh.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("error %s when upgrading connection to websocket", err)
+		return
+	}
+
 	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-		conn, err := wsh.upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			log.Printf("error %s when upgrading connection to websocket", err)
-			return
-		}
-		c.conn = conn
-		c.sessionID = uuid.New()
 		fmt.Println("Creating new client")
+		c.conn = conn
+		c.writeMessage = make(chan string)
+		c.serverMessage = make(chan string)
+		c.sessionID = uuid.New()
+		fmt.Println("debuf")
 		controller.register <- c
+		fmt.Println("de")
+
 	} else {
-		// get the old client session
+		// TODO : TEST THIS WHOLE FLOW
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		parsedToken, err := validateToken(tokenString)
 		if err != nil {
 			log.Printf("Error %s when validating JWT token", err)
 			return
 		}
-		fmt.Println(parsedToken.Claims)
-		// TODO : extract the session id and then get the client from the controller
+		claims := parsedToken.Claims.(jwt.MapClaims)
+		parsedUUID, err := uuid.Parse(claims["user_id"].(string))
+		fmt.Println("Parsed UUID is ", parsedUUID)
+		if err != nil {
+			log.Fatalf("Failed to parse user_id as UUID: %v", err)
+			return
+		}
+		c, err := controller.getClient(parsedUUID)
+		if err != nil {
+			response := "Client with session id " + parsedUUID.String() + " not found"
+			err := conn.WriteMessage(websocket.TextMessage, []byte(response))
+			if err != nil {
+				log.Printf("Error %s when sending message to client", err)
+				return
+			}
+			err = conn.Close()
+			if err != nil {
+				log.Printf("Error %s when closing connection", err)
+			}
+			return
+		}
+		c.conn = conn
 	}
 
+	fmt.Println("Client session id is ", c.sessionID)
+	go c.clientRead()
+	fmt.Println("Client read started")
+	// I dont need to handle stopping clientRead goroutine - it will automatically exit after the error reading msg when i stop clientHandler.
 	go c.clientHandler()
+	fmt.Println("Client handler started")
 
 }
 
 func (c *client) clientHandler() {
-	conn := c.conn
-	defer conn.Close()
+	defer c.conn.Close()
 
+	fmt.Println("Client handler started")
 	token, err := createJWTToken(c.sessionID.String())
 	if err != nil {
 		log.Printf("Error %s when creating JWT token", err)
@@ -99,57 +143,63 @@ func (c *client) clientHandler() {
 	}
 
 	reponse := "Connection Successful with session id " + c.sessionID.String() + ". Welcome to the server!. Your JWT token for futhur login is " + token
-	err = conn.WriteMessage(websocket.TextMessage, []byte(reponse))
-	if err != nil {
-		log.Printf("Error %s when sending message to client", err)
-		return
-	}
+	c.clientWrite(reponse)
 
 	// initializeTime := time.Now().Unix()
 	// for (time.Now().Unix() - initializeTime) < 300 {
-	for {
 
-		// WebSocket protocol supports both text and binary message types. Since poc, only implementing for string types.
-		messageType, message, err := conn.ReadMessage()
+	// enable server side pushing
+	// Reads msgs
+	for {
+		select {
+		case serverMessage := <-c.serverMessage:
+			c.clientWrite(serverMessage)
+		case writeMessage := <-c.writeMessage:
+			if string(writeMessage) == "close" {
+				response := "Closing connection with client"
+				c.clientWrite(response)
+				return
+			}
+			c.counter++
+			response := "Received message " + string(writeMessage) + " from client. This is message number " + fmt.Sprintf("%d", c.counter)
+
+			c.clientWrite(response)
+		}
+	}
+
+}
+
+func (c *client) clientRead() {
+	for {
+		messageType, message, err := c.conn.ReadMessage()
 		if err != nil {
 			log.Printf("Error %s when reading message from client", err)
 			return
 		}
-
 		if messageType != websocket.TextMessage {
-			err = conn.WriteMessage(websocket.TextMessage, []byte("Only text messages are supported"))
-			if err != nil {
-				log.Printf("Error %s when sending message to client", err)
-				return
-			}
+			response := "Only text messages are supported"
+			c.clientWrite(response)
 			return
 		}
-
-		if string(message) == "close" {
-			err = conn.WriteMessage(websocket.TextMessage, []byte("Closing connection"))
-			if err != nil {
-				log.Printf("Error %s when sending message to client", err)
-				return
-			}
-			return
-		}
-
-		c.counter++
-		response := "Received message " + string(message) + " from client. This is message number " + fmt.Sprintf("%d", c.counter)
-		err = conn.WriteMessage(websocket.TextMessage, []byte(response))
-		if err != nil {
-			log.Printf("Error %s when sending message to client", err)
-			return
-		}
-
+		c.writeMessage <- string(message)
 	}
+}
 
+func (c *client) clientWrite(response string) {
+	err := c.conn.WriteMessage(websocket.TextMessage, []byte(response))
+	if err != nil {
+		log.Printf("Error %s when sending message to client", err)
+		return
+	}
 }
 
 func main() {
 	// Create a new controller
 	controller := controller{
-		clients: make(map[uuid.UUID]*client),
+		clients:  make(map[uuid.UUID]*client),
+		register: make(chan *client),
+		delete:   make(chan *client),
+		mu:       sync.RWMutex{},
 	}
 	go controller.run()
 
@@ -162,10 +212,9 @@ func main() {
 	})
 
 	http.HandleFunc("/getClients", func(w http.ResponseWriter, r *http.Request) {
-		controller.mu.Lock()
-		defer controller.mu.Unlock()
-		for _, c := range controller.clients {
-			fmt.Fprintf(w, "Session ID: %s, Counter: %d\n", c.sessionID, c.counter)
+		clients := controller.getClients()
+		for _, client := range clients {
+			fmt.Println(client.sessionID)
 		}
 	})
 
