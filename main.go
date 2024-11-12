@@ -106,7 +106,7 @@ func (wsh *webSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, c
 			log.Fatalf("Failed to parse user_id as UUID: %v", err)
 			return
 		}
-		c, err := controller.getClient(parsedUUID)
+		clientFound, err := controller.getClient(parsedUUID)
 		if err != nil {
 			response := "Client with session id " + parsedUUID.String() + " not found"
 			err := conn.WriteMessage(websocket.TextMessage, []byte(response))
@@ -120,6 +120,8 @@ func (wsh *webSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, c
 			}
 			return
 		}
+		fmt.Println("Client with session id " + parsedUUID.String() + "found")
+		c = clientFound
 		c.conn = conn
 	}
 
