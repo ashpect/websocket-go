@@ -17,6 +17,7 @@ type webSocketHandler struct {
 
 type client struct {
 	conn      *websocket.Conn
+	serverMessage chan string
 	sessionID uuid.UUID
 	counter   int
 }
@@ -43,7 +44,19 @@ func (m *controller) run() {
 	}
 }
 
-func (wsh *webSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (m *controller) getClients() map[uuid.UUID]*client {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.clients
+}
+
+func (m *controller) getClient(sessionID uuid.UUID) *client {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.clients[sessionID]
+}
+
+func (wsh *webSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, controller *controller) {
 
 	authHeader := r.Header.Get("Authorization")
 
@@ -57,8 +70,8 @@ func (wsh *webSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		c.conn = conn
 		c.sessionID = uuid.New()
-		fmt.Println("Creating new client Connection")
-		// controller.register <- c
+		fmt.Println("Creating new client")
+		controller.register <- c
 	} else {
 		// get the old client session
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
@@ -68,13 +81,14 @@ func (wsh *webSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		fmt.Println(parsedToken.Claims)
+		// TODO : extract the session id and then get the client from the controller
 	}
 
-	go clientHandler(c)
+	go c.clientHandler()
 
 }
 
-func clientHandler(c *client) {
+func (c *client) clientHandler() {
 	conn := c.conn
 	defer conn.Close()
 
@@ -84,13 +98,15 @@ func clientHandler(c *client) {
 		return
 	}
 
-	reponse := "Connection Successful with session id " + c.sessionID.String() + ". Welcome to the server!. Your JWT token is " + token
+	reponse := "Connection Successful with session id " + c.sessionID.String() + ". Welcome to the server!. Your JWT token for futhur login is " + token
 	err = conn.WriteMessage(websocket.TextMessage, []byte(reponse))
 	if err != nil {
 		log.Printf("Error %s when sending message to client", err)
 		return
 	}
 
+	// initializeTime := time.Now().Unix()
+	// for (time.Now().Unix() - initializeTime) < 300 {
 	for {
 
 		// WebSocket protocol supports both text and binary message types. Since poc, only implementing for string types.
@@ -102,6 +118,15 @@ func clientHandler(c *client) {
 
 		if messageType != websocket.TextMessage {
 			err = conn.WriteMessage(websocket.TextMessage, []byte("Only text messages are supported"))
+			if err != nil {
+				log.Printf("Error %s when sending message to client", err)
+				return
+			}
+			return
+		}
+
+		if string(message) == "close" {
+			err = conn.WriteMessage(websocket.TextMessage, []byte("Closing connection"))
 			if err != nil {
 				log.Printf("Error %s when sending message to client", err)
 				return
@@ -132,7 +157,18 @@ func main() {
 		upgrader: websocket.Upgrader{},
 	}
 
-	http.Handle("/", &webSocketHandler)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		webSocketHandler.ServeHTTP(w, r, &controller)
+	})
+
+	http.HandleFunc("/getClients", func(w http.ResponseWriter, r *http.Request) {
+		controller.mu.Lock()
+		defer controller.mu.Unlock()
+		for _, c := range controller.clients {
+			fmt.Fprintf(w, "Session ID: %s, Counter: %d\n", c.sessionID, c.counter)
+		}
+	})
+
 	log.Print("Starting server...")
 	log.Fatal(http.ListenAndServe("localhost:8080", nil))
 }
