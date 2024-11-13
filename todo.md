@@ -27,6 +27,7 @@ should send the same dummy message and receive a response.
 ## Good-to-Have Features
 1. Session Reconnection: <br>
 [x] After disconnection, clients can reconnect to their session using the same session ID.
+[x] Authtoken based reconnection and not simply session based.
 2. Session Inactivity Management: <br>
 [x] If a session is inactive for more than 5 minutes, the server should automatically
 disconnect the user.

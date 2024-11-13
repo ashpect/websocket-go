@@ -80,7 +80,7 @@ func (wsh *webSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, c
 	}
 
 	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-		// fmt.Println("Creating new client")
+		// fmt.Println("DEBUGGINGGGGGGGG : Creating new client")
 		c.conn = conn
 		c.writeMessage = make(chan string)
 		c.serverMessage = make(chan string)
@@ -139,12 +139,9 @@ func (c *client) clientHandler() {
 	reponse := "Connection Successful with session id " + c.sessionID.String() + ". Welcome to the server!. Your JWT token for futhur login is " + token
 	c.clientWrite(reponse)
 
-	// initializeTime := time.Now().Unix()
-	// for (time.Now().Unix() - initializeTime) < 300 {
 	sessionTimer := time.NewTimer(1 * time.Minute)
 	defer sessionTimer.Stop() // Stop the timer when the function exits
 
-	// enable server side pushing
 	// Reads msgs
 	for {
 		select {
@@ -170,7 +167,6 @@ func (c *client) clientHandler() {
 }
 
 func (c *client) clientRead() {
-	// fmt.Println("Client read started")
 	for {
 		messageType, message, err := c.conn.ReadMessage()
 		if err != nil {
