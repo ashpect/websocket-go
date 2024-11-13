@@ -10,18 +10,18 @@ along with the current message count for that session.
 [x] The server should be capable of sending messages to clients without receiving a
 client message (server-side push).
 4. Benchmarking: <br>
-[] Provide a basic benchmarking script that simulates clients. Each simulated client
+[x] Provide a basic benchmarking script that simulates clients. Each simulated client
 should send the same dummy message and receive a response.
-[] The benchmarking script must measure:
-    []Total failures (e.g., no response received or connection dropped).
-    []Total throughput of the WebSocket server.
+[x] The benchmarking script must measure:
+    [x]Total failures (e.g., no response received or connection dropped).
+    [x]Total throughput of the WebSocket server.
 
 ## Non-Functional Requirements
 1. Scalability: <br>
-[] The server should handle at least 50,000 concurrent connections.
+[x] The server should handle at least 50,000 concurrent connections.
 2. Deployment: <br>
-[] Depoyment scripts in bash
-[] Contanerize in docker/k8s
+[x] Depoyment scripts in bash
+[x] Contanerize in docker/k8s
 
 
 ## Good-to-Have Features
@@ -32,8 +32,8 @@ should send the same dummy message and receive a response.
 [x] If a session is inactive for more than 5 minutes, the server should automatically
 disconnect the user.
 3. Advanced Benchmarking: <br>
-[] In addition to the basic benchmarking:
-[] Track and measure total memory usage.
-[] Record the avg/median/low/high latency per session once a client
+In addition to the basic benchmarking:
+[x] Track and measure total memory usage.
+[x] Record the avg/median/low/high latency per session once a client
 disconnects
 [] Provide plots or visualizations of these metrics.
