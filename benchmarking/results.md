@@ -48,7 +48,7 @@ Failed Messages Sent: 0
 Message Throughput: 90.50 messages/second
 Data Throughput: 452.50 bytes/second
 ```
-3. With
+4. With
 `
 8ms diff ; 3 retries after 3 seconds 
 `
@@ -65,3 +65,20 @@ Message Throughput: 111.23 messages/second
 Data Throughput: 556.11 bytes/second
 ```
 
+5. With
+`
+5ms diff ; 3 retries after 3 seconds and Benchmarking latency
+`
+<br> 
+```
+Benchmark finished: 4m45.478776417s
+Total Connections: 50000
+Successful Connections: 48524
+Failed Connections: 1476
+Total Messages Sent: 50000
+Successful Messages Sent: 48524
+Failed Messages Sent: 0
+Message Throughput: 169.97 messages/second
+Data Throughput: 849.87 bytes/second
+Latency (ms) - Avg: 0.00, Median: 0.00, Min: 0.00, Max: 87.00
+```

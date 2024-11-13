@@ -1,4 +1,8 @@
-## Functional Requirements
+# Websocket-Go
+A minimal websocket server in Go which concurrently manages user sessions, respond to client messages,
+and support server-side events.
+
+## Functional Features
 1. Connection Management: <br>
 - [x] The server should allow users to connect and disconnect.
 - [x] Upon connection, the server should issue a unique session ID to the user. 
@@ -16,7 +20,7 @@ should send the same dummy message and receive a response.
     - [x]Total failures (e.g., no response received or connection dropped).
     - [x]Total throughput of the WebSocket server.
 
-## Non-Functional Requirements
+## Non-Functional Features
 1. Scalability: <br>
 - [x] The server should handle at least 50,000 concurrent connections.
 2. Deployment: <br>

@@ -152,9 +152,12 @@ func (c *client) clientHandler() {
 		case serverMessage := <-c.serverMessage:
 			c.clientWrite(serverMessage)
 		case writeMessage := <-c.writeMessage:
-			if string(writeMessage) == "close" {
+			if strings.TrimSpace(writeMessage) == "close" {
 				response := "Closing connection with client"
-				c.clientWrite(response)
+				err := c.conn.WriteMessage(websocket.TextMessage, []byte(response))
+				if err != nil {
+					log.Printf("Failed to send close frame: %v", err)
+				}
 				return
 			}
 			c.counter++
@@ -169,8 +172,9 @@ func (c *client) clientHandler() {
 func (c *client) clientRead() {
 	for {
 		messageType, message, err := c.conn.ReadMessage()
+		// Removing this error message to avoid cluttering at the end when client handler goroutine dies
 		if err != nil {
-			log.Printf("Error %s when reading message from client", err)
+			// log.Printf("Error %s when reading message from client", err)
 			return
 		}
 		if messageType != websocket.TextMessage {
