@@ -1,10 +1,8 @@
-version: '1.0'
-
 services:
   websocket-server:
     build:
-      context: .  
-      dockerfile: Dockerfile  
+      context: ../  
+      dockerfile: deployment/Dockerfile  
     container_name: websocket-server-container
     ports:
       - "8080:8080"  

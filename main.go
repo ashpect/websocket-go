@@ -25,6 +25,8 @@ type client struct {
 	counter       int
 }
 
+var timeOut = 5 * time.Minute
+
 type controller struct {
 	clients  map[uuid.UUID]*client
 	register chan *client
@@ -139,8 +141,15 @@ func (c *client) clientHandler() {
 	reponse := "Connection Successful with session id " + c.sessionID.String() + ". Welcome to the server!. Your JWT token for futhur login is " + token
 	c.clientWrite(reponse)
 
-	sessionTimer := time.NewTimer(1 * time.Minute)
+	sessionTimer := time.NewTimer(timeOut)
 	defer sessionTimer.Stop() // Stop the timer when the function exits
+
+	resetTimer := func(timer *time.Timer, duration time.Duration) {
+		if !timer.Stop() {
+			<-timer.C // Drain the channel to prevent blocking
+		}
+		timer.Reset(duration)
+	}
 
 	// Reads msgs
 	for {
@@ -160,6 +169,7 @@ func (c *client) clientHandler() {
 				}
 				return
 			}
+			resetTimer(sessionTimer, timeOut)
 			c.counter++
 			response := "Received message " + string(writeMessage) + " from client. This is message number " + fmt.Sprintf("%d", c.counter)
 
@@ -220,5 +230,5 @@ func main() {
 	})
 
 	log.Print("Starting server...")
-	log.Fatal(http.ListenAndServe("localhost:8080", nil))
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
